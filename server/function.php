@@ -1,45 +1,74 @@
 <?php
-// ✅ Allow cross-origin requests and set content type
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json");
+include 'conn.php';
+function upload($conn, $input) {
+    $dir = "myfile/";
+    $now = date("Ymd_His");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
+    }
+
+    // Get file extensions
+    $imgExt = explode('/', explode(';', $input->image)[0])[1];
+    $vidExt = explode('/', explode(';', $input->video)[0])[1];
+
+    // File names
+    $imgFile = "image_" . $now . "." . $imgExt;
+    $vidFile = "video_" . $now . "." . $vidExt;
+
+    // Get base64 content
+    $imgData = base64_decode(explode(',', $input->image)[1]);
+    $vidData = base64_decode(explode(',', $input->video)[1]);
+
+    // Save files
+    file_put_contents($dir . $imgFile, $imgData);
+    file_put_contents($dir . $vidFile, $vidData);
+
+    // Save path to DB
+    $post = json_encode([
+        "title" => $input->title,
+        "video" => $vidFile,
+        "image" => $imgFile,
+        "duration" => $input->length
+    ]);
+
+    $stmt = $conn->prepare("INSERT INTO videos (post) VALUES (?)");
+    $stmt->bind_param("s", $post);
+
+    echo $stmt->execute() ? "Upload successful." : "DB error: " . $stmt->error;
 }
 
-//  Connect to MySQL
-$conn = new mysqli('localhost', 'root', '') or die('Unable to connect');
 
-//  Create database if it doesn't exist
-$conn->query("CREATE DATABASE IF NOT EXISTS xgod");
-$conn->select_db('paysblog');
 
-//  Load and run SQL schema (only if 'data.php' is a valid SQL file)
-$data_sql_query = "query.sql";
-if (file_exists($data_sql_query)) {
-    $conn->multi_query(file_get_contents($data_sql_query));
-}
 
 function post($conn, $limit) {
-    $start = (int)$limit->start;
-    $count = (int)$limit->end; // Ideally rename 'end' to 'count' for clarity
-    
+    // Sanitize and validate input
+    $start = isset($limit->start) ? (int)$limit->start : 0;
+    $count = isset($limit->end) ? (int)$limit->end : 4;
+
+    // Prepare and execute SQL
     $stmt = $conn->prepare("SELECT post FROM videos ORDER BY id DESC LIMIT ?, ?");
+    if (!$stmt) {
+        http_response_code(500);
+        return json_encode(['error' => 'Database prepare failed']);
+    }
+
     $stmt->bind_param("ii", $start, $count);
     $stmt->execute();
-    
     $result = $stmt->get_result();
+
+    // Fetch and decode JSON from DB
     $jsondata = [];
-    
     while ($row = $result->fetch_assoc()) {
-        $jsondata[] = json_decode($row['post'], true); // Decode as associative array
+        $decoded = json_decode($row['post'], true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $jsondata[] = $decoded;
+        }
     }
 
     return json_encode($jsondata);
 }
+
 
 
 // ✅ Member function

@@ -1,5 +1,5 @@
-create table if not exists videos(
-    id int auto_increament primary key,
-    post json,
-    status enum('inactive','active') default 'active' 
+CREATE TABLE IF NOT EXISTS videos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    post JSON,
+    status ENUM('inactive', 'active') DEFAULT 'active'
 );

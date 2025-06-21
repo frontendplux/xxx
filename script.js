@@ -1,6 +1,10 @@
-import { router } from "./public/router.js";
+import { getCleanPath, router } from "./public/router.js";
 import { prevent_a_from_click } from "./public/waget.js";
-prevent_a_from_click();
 window.addEventListener('DOMContentLoaded', () => {
-    router(window.location.pathname);
+  const path = getCleanPath();
+  router(path || '/home');
 });
+window.onpopstate = (e) => {
+    router(e.state.url);
+  };
+prevent_a_from_click();
